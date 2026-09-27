@@ -1,5 +1,12 @@
 const isMac = process.platform === "darwin";
 const isWindows = process.platform === "win32";
+const isLinux = process.platform === "linux";
+
+// Hyprland reports an open capture session as a direct-scanout block reason on
+// the captured monitor, so the app can hide notes while it is being recorded.
+function captureWatchSupported(env = process.env) {
+  return isLinux && !!env.HYPRLAND_INSTANCE_SIGNATURE;
+}
 
 function hideDockIconIfMac(app) {
   if (isMac && app.dock) app.dock.hide();
@@ -74,12 +81,17 @@ function captureExclusionCaveat() {
   if (isWindows) {
     return "Screen-capture exclusion requires Windows 10 (build 19041) or later. On older Windows versions, notes may be visible to screen recordings.";
   }
+  if (isLinux && !captureWatchSupported()) {
+    return "Linux capture exclusion depends on the compositor. KDE Plasma 6.6 and later can hide a window from screencasts; elsewhere notes may be visible to screen recordings.";
+  }
   return null;
 }
 
 module.exports = {
   isMac,
   isWindows,
+  isLinux,
+  captureWatchSupported,
   hideDockIconIfMac,
   isCommandOrControlPressed,
   formatAccelerator,

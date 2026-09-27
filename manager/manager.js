@@ -25,6 +25,7 @@ function sanitizeTitle(input) {
 
 function createManagerModule({ store, actions, theme }) {
   let win = null;
+  let captureHidden = false;
 
   function snapshot() {
     return {
@@ -334,7 +335,23 @@ function createManagerModule({ store, actions, theme }) {
     };
   });
 
-  return { openManagerWindow, notifyChanged };
+  // The manager lists every note, so an open one is hidden for the duration of a
+  // capture and brought back when it ends.
+  function setCaptureHidden(hidden) {
+    if (!win || win.isDestroyed()) {
+      captureHidden = false;
+      return;
+    }
+    if (hidden) {
+      captureHidden = win.isVisible();
+      if (captureHidden) win.hide();
+    } else if (captureHidden) {
+      captureHidden = false;
+      win.show();
+    }
+  }
+
+  return { openManagerWindow, notifyChanged, setCaptureHidden };
 }
 
 module.exports = { createManagerModule };

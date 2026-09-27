@@ -11,7 +11,10 @@ function applyContentProtection(win) {
   win.setContentProtection(true);
 }
 
-function createNoteWindow(record, { onMoved, onResized, onClosed } = {}) {
+function createNoteWindow(
+  record,
+  { onMoved, onResized, onClosed, shouldReveal } = {},
+) {
   const bounds = clampToVisibleDisplay({
     ...record,
     width: Math.max(record.width || 0, MIN_NOTE_WIDTH),
@@ -50,7 +53,8 @@ function createNoteWindow(record, { onMoved, onResized, onClosed } = {}) {
 
   win.once("ready-to-show", () => {
     applyContentProtection(win);
-    if (record.visible !== false) win.showInactive();
+    if (record.visible !== false && (!shouldReveal || shouldReveal()))
+      win.showInactive();
   });
 
   if (onMoved) win.on("moved", () => onMoved(win));
