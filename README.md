@@ -1,4 +1,4 @@
-# Ghost Notes (macOS,Windows)
+# Ghost Notes (macOS, Windows, Linux)
 
 ![Downloads](https://img.shields.io/github/downloads/navyabijoy/invisible-notes/total)
 
@@ -11,6 +11,8 @@ Private. Local. Lightweight. No account, no cloud, no telemetry on note content 
 ## How it works
 
 Each note is a frameless, transparent Electron window with `setContentProtection(true)`. The OS excludes that window from screen capture while you still see it normally. Notes are always-on-top and stay visible even over fullscreen apps (macOS).
+
+Electron has no content protection on Linux (`setContentProtection` is a no-op there), so the app watches the compositor instead. On Hyprland it hides the notes for as long as a screen recording or screen share is running, and brings them back when it ends, so the capture contains nothing of them. See [Linux](#linux) for the other desktops.
 
 ## Run
 
@@ -51,8 +53,10 @@ Each note remembers which display it was on. If a monitor is disconnected, or a 
 
 ## Verify the invisibility
 
-1. Start a screen recording (QuickTime → File → New Screen Recording, or Windows' built-in screen recorder) or a Zoom/Meet/Teams call with screen share.
+1. Start a screen recording (QuickTime → File → New Screen Recording, Windows' built-in screen recorder, or a Zoom/Meet/Teams call with screen share).
 2. The note stays visible on your screen but does **not** appear in the recording / to viewers.
+
+On Hyprland the notes leave your screen for the duration of the capture and return afterwards, so the recording has no trace of them. On KDE Plasma 6.6 or later, right-click a note window and choose **More Actions → Hide from Screencast**: the window stays visible to you and is skipped in the recording.
 
 > First time only on macOS: the OS may ask you to grant the app **Screen Recording** permission in System Settings → Privacy & Security. Content protection works regardless, but granting it avoids the OS prompt.
 
@@ -69,6 +73,27 @@ Ghost Notes is built to work on both macOS and Windows, but a couple of OS-level
 
 If you hit different behavior on Windows than described here, please open an issue with your Windows build number.
 
+### Linux
+
+`setContentProtection` does nothing on Linux, so capture exclusion comes from the compositor. Ghost Notes runs as an AppImage:
+
+| Compositor        | What happens                                                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hyprland          | The app checks the compositor for an open capture session and hides the notes while one runs, so recordings contain no trace of them. Notes reappear when the capture ends. |
+| KDE Plasma 6.6+   | Right-click the note window → More Actions → Hide from Screencast. The window stays visible on your screen and is left out of screencasts.                                  |
+| niri              | `block-out-from "screen-capture"` in a window rule draws a black rectangle over the note in captures.                                                                       |
+| GNOME, X11, other | No reliable mechanism, so notes may appear in recordings.                                                                                                                   |
+
+Notes hide as soon as the app notices the capture session, which can take up to a quarter of a second. To cover that window with a compositor-enforced blackout as well, add this to your Hyprland config:
+
+```ini
+windowrule {
+  name = ghost-notes-hide
+  match:class = ^(invisible-notes)$
+  no_screen_share = true
+}
+```
+
 ## Privacy
 
 - No login, no account, no cloud sync.
@@ -81,6 +106,7 @@ If you hit different behavior on Windows than described here, please open an iss
 ```bash
 npm run dist:mac    # macOS .dmg / .zip
 npm run dist:win    # Windows installer (.exe via NSIS)
+npm run dist:linux  # Linux AppImage
 ```
 
 Windows builds are currently unsigned — Windows SmartScreen may warn on first run until code-signing is set up.
