@@ -75,24 +75,32 @@ If you hit different behavior on Windows than described here, please open an iss
 
 ### Linux
 
-`setContentProtection` does nothing on Linux, so capture exclusion comes from the compositor. Ghost Notes runs as an AppImage:
+`setContentProtection` does nothing on Linux, so Ghost Notes watches for captures itself and takes the notes off screen for as long as one is running. Three signals are checked on every desktop, and any one of them hides the notes:
 
-| Compositor        | What happens                                                                                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hyprland          | The app checks the compositor for an open capture session and hides the notes while one runs, so recordings contain no trace of them. Notes reappear when the capture ends. |
-| KDE Plasma 6.6+   | Right-click the note window → More Actions → Hide from Screencast. The window stays visible on your screen and is left out of screencasts.                                  |
-| niri              | `block-out-from "screen-capture"` in a window rule draws a black rectangle over the note in captures.                                                                       |
-| GNOME, X11, other | No reliable mechanism, so notes may appear in recordings.                                                                                                                   |
+| Signal                                                                                                                      | Covers                                                                          | Noticed within                                                          |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| A capture session on the compositor (Hyprland reports one per output)                                                       | anything that captures through the compositor, including portal shares          | 0.25 s                                                                  |
+| A screen recorder process (`gpu-screen-recorder`, `obs`, `wf-recorder`, `kooha`, `ffmpeg -f x11grab/kmsgrab/pipewire`, ...) | recorders that read the display directly, on any desktop                        | 0.5 s                                                                   |
+| A screencast stream on PipeWire                                                                                             | portal shares on desktops without the compositor signal (GNOME, KDE, sway, ...) | 1 s, or 2 s on Hyprland where the compositor signal already covers them |
 
-Notes hide as soon as the app notices the capture session, which can take up to a quarter of a second. To cover that window with a compositor-enforced blackout as well, add this to your Hyprland config:
+The notes come back about 1.5 s after the last signal stops, so a sample that drops out mid-capture cannot reveal them.
+
+Two things no Linux app can cover. A recorder running as root that reads the display straight from the kernel captures whatever is on screen, and on X11 sessions no compositor policy applies. On Hyprland you can add compositor-enforced blackout on top, so those cases show a black rectangle instead of the note:
 
 ```ini
 windowrule {
   name = ghost-notes-hide
-  match:class = ^(invisible-notes)$
+  match:class ^(invisible-notes)$
   no_screen_share = true
 }
 ```
+
+On KDE Plasma 6.6 and later you can also right-click a note window and pick **More Actions → Hide from Screencast** to have KWin drop it from screencasts.
+
+#### AppImage notes
+
+- The build needs glibc 2.25 or later, so it runs on Ubuntu 17.04+, Debian 10+, RHEL 8+, and Fedora 27+.
+- Distributions that restrict unprivileged user namespaces (Ubuntu 23.10 and later with AppArmor) stop Electron's sandbox from starting inside an AppImage. Launch it with `--no-sandbox` there, or install an AppArmor profile for it.
 
 ## Privacy
 
