@@ -266,6 +266,7 @@ function captureStatusLabel() {
   if (notesHiddenForCapture)
     return "Notes hidden while screen capture is active";
   if (captureDetectionStopped) return "Notes may appear in screen recordings";
+  if (platform.isLinux) return "Notes hide while a screen capture is detected";
   return "Notes are invisible to screen sharing ✓";
 }
 
