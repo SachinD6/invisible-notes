@@ -55,7 +55,6 @@
       "platform.js",
       "noteWindow.js",
       "displayUtils.js",
-      "captureWatch.js",
       "shortcuts.js",
       "manager.js",
       "noteSize.js",

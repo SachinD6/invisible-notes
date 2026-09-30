@@ -21,7 +21,6 @@ const {
   applyContentProtection,
 } = require("./note/noteWindow");
 const { clampToVisibleDisplay, displayIdForPoint } = require("./displayUtils");
-const { createCaptureWatch } = require("./captureWatch");
 const {
   registerShortcuts,
   registerFallbackShortcut,
@@ -76,11 +75,6 @@ function createStore() {
 // Open note windows; a stored note can exist with no window (hidden, not deleted).
 const noteWindows = new Map(); // id -> BrowserWindow
 let tray = null;
-let captureWatch = null;
-let captureDetectionStopped = false;
-// Set while the compositor reports an open capture session on Linux, where the
-// window itself would otherwise land in the recording.
-let notesHiddenForCapture = false;
 
 // Pasted images live as standalone files here; only filenames go into the JSON
 // store so notes.json stays small and debounced saves stay cheap.
@@ -178,7 +172,6 @@ function createManager() {
 
 function openNoteWindow(record) {
   const win = createNoteWindow(record, {
-    shouldReveal: () => !notesHiddenForCapture,
     onMoved: (w) => {
       const [x, y] = w.getPosition();
       store.update(record.id, { x, y, displayId: displayIdForPoint(x, y) });
@@ -222,7 +215,6 @@ function notesInCurrentScope() {
 }
 
 function openWindowFor(id) {
-  if (notesHiddenForCapture) return null;
   const existing = noteWindows.get(id);
   if (existing && !existing.isDestroyed()) {
     existing.showInactive();
@@ -244,47 +236,9 @@ function closeWindowFor(id) {
 // Show or hide windows to match the current list scope, without changing `visible`.
 function applyActiveWorkspace() {
   for (const record of store.all()) {
-    if (noteBelongsOnScreen(record) && !notesHiddenForCapture)
-      openWindowFor(record.id);
+    if (noteBelongsOnScreen(record)) openWindowFor(record.id);
     else closeWindowFor(record.id);
   }
-}
-
-// A recording or screen share would capture the note windows themselves, so
-// take them off screen for as long as a capture session is open.
-function setNotesHiddenForCapture(hidden) {
-  if (notesHiddenForCapture === hidden) return;
-  notesHiddenForCapture = hidden;
-  applyActiveWorkspace();
-  if (manager) manager.setCaptureHidden(hidden);
-  updateTrayMenu();
-}
-
-// True while the compositor has a session open, false when it does not, and
-// unknown after detection stops.
-function captureStatusLabel() {
-  if (notesHiddenForCapture)
-    return "Notes hidden while screen capture is active";
-  if (captureDetectionStopped) return "Notes may appear in screen recordings";
-  if (platform.isLinux) return "Notes hide while a screen capture is detected";
-  return "Notes are invisible to screen sharing ✓";
-}
-
-function startCaptureWatch() {
-  if (!platform.captureWatchSupported()) return;
-  // Assume a capture until the first reading arrives, so notes never flash on
-  // screen when a session is already running.
-  notesHiddenForCapture = true;
-  captureWatch = createCaptureWatch({
-    onCaptureChange: setNotesHiddenForCapture,
-    onUnavailable: () => {
-      captureWatch = null;
-      captureDetectionStopped = true;
-      setNotesHiddenForCapture(false);
-      updateTrayMenu();
-    },
-  });
-  captureWatch.start();
 }
 
 function showNote(id) {
@@ -690,10 +644,7 @@ function updateTrayMenu() {
       click: () => manager.openManagerWindow({ showShortcuts: true }),
     },
     { type: "separator" },
-    {
-      label: captureStatusLabel(),
-      enabled: false,
-    },
+    { label: "Notes are invisible to screen sharing ✓", enabled: false },
     ...(caveat ? [{ label: caveat, enabled: false }] : []),
     { type: "separator" },
     {
@@ -750,7 +701,7 @@ if (!gotLock) {
 
     setupTray();
     registerFallbackShortcut(globalShortcut, () => createNoteNearCursor());
-    startCaptureWatch();
+    platform.applyLinuxCaptureExclusion();
 
     if (store.all().length === 0) {
       createNoteNearCursor();
@@ -771,7 +722,6 @@ if (!gotLock) {
   });
 
   app.on("will-quit", () => {
-    if (captureWatch) captureWatch.stop();
     unregisterFallbackShortcut(globalShortcut);
   });
 

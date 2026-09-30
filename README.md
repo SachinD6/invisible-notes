@@ -12,7 +12,7 @@ Private. Local. Lightweight. No account, no cloud, no telemetry on note content 
 
 Each note is a frameless, transparent Electron window with `setContentProtection(true)`. The OS excludes that window from screen capture while you still see it normally. Notes are always-on-top and stay visible even over fullscreen apps (macOS).
 
-Electron has no content protection on Linux (`setContentProtection` is a no-op there), so the app watches the compositor instead. On Hyprland it hides the notes for as long as a screen recording or screen share is running, and brings them back when it ends, so the capture contains nothing of them. See [Linux](#linux) for the other desktops.
+Electron has no content protection on Linux, so exclusion comes from the compositor. On Hyprland the app applies the `no_screen_share` window rule on launch, which keeps the note on your screen and hides its content from every capture, as a black box in the recording. See [Linux](#linux).
 
 ## Run
 
@@ -53,10 +53,8 @@ Each note remembers which display it was on. If a monitor is disconnected, or a 
 
 ## Verify the invisibility
 
-1. Start a screen recording (QuickTime → File → New Screen Recording, Windows' built-in screen recorder, or a Zoom/Meet/Teams call with screen share).
+1. Start a screen recording (QuickTime → File → New Screen Recording, or Windows' built-in screen recorder) or a Zoom/Meet/Teams call with screen share.
 2. The note stays visible on your screen but does **not** appear in the recording / to viewers.
-
-On Hyprland the notes leave your screen for the duration of the capture and return afterwards, so the recording has no trace of them. On KDE Plasma 6.6 or later, right-click a note window and choose **More Actions → Hide from Screencast**: the window stays visible to you and is skipped in the recording.
 
 > First time only on macOS: the OS may ask you to grant the app **Screen Recording** permission in System Settings → Privacy & Security. Content protection works regardless, but granting it avoids the OS prompt.
 
@@ -75,17 +73,16 @@ If you hit different behavior on Windows than described here, please open an iss
 
 ### Linux
 
-`setContentProtection` does nothing on Linux, so Ghost Notes watches for captures itself and takes the notes off screen for as long as one is running. Three signals are checked on every desktop, and any one of them hides the notes:
+Electron has no content protection on Linux, so exclusion comes from the compositor:
 
-| Signal                                                                                                                      | Covers                                                                          | Noticed within                                                          |
-| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| A capture session on the compositor (Hyprland reports one per output)                                                       | anything that captures through the compositor, including portal shares          | 0.25 s                                                                  |
-| A screen recorder process (`gpu-screen-recorder`, `obs`, `wf-recorder`, `kooha`, `ffmpeg -f x11grab/kmsgrab/pipewire`, ...) | recorders that read the display directly, on any desktop                        | 0.5 s                                                                   |
-| A screencast stream on PipeWire                                                                                             | portal shares on desktops without the compositor signal (GNOME, KDE, sway, ...) | 1 s, or 2 s on Hyprland where the compositor signal already covers them |
+| Compositor        | What happens                                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Hyprland          | On launch the app adds the `no_screen_share` window rule for its own window class. A note stays visible on your screen, and captures show a black rectangle where it is. |
+| KDE Plasma 6.6+   | Right-click the note window → More Actions → Hide from Screencast. KWin leaves the window out of the screencast, so the recording shows the desktop behind it.           |
+| niri              | `block-out-from "screen-capture"` in a window rule draws a black rectangle over the note in captures.                                                                    |
+| GNOME, X11, other | No mechanism, so notes appear in recordings.                                                                                                                             |
 
-The notes come back about 1.5 s after the last signal stops, so a sample that drops out mid-capture cannot reveal them.
-
-Two things no Linux app can cover. A recorder running as root that reads the display straight from the kernel captures whatever is on screen, and on X11 sessions no compositor policy applies. On Hyprland you can add compositor-enforced blackout on top, so those cases show a black rectangle instead of the note:
+The Hyprland rule lives in the running config and a compositor reload clears it. To keep it, add the same rule to your config:
 
 ```ini
 windowrule {
@@ -95,7 +92,7 @@ windowrule {
 }
 ```
 
-On KDE Plasma 6.6 and later you can also right-click a note window and pick **More Actions → Hide from Screencast** to have KWin drop it from screencasts.
+A black box hides the note's content while still showing that something is hidden there. Hyprland does not re-render captures without the window, so a transparent hole is not available there. A recorder running as root that reads the display straight from the kernel captures the note as it appears on screen, which no Linux app can prevent.
 
 #### AppImage notes
 
