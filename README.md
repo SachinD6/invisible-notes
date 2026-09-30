@@ -87,7 +87,7 @@ The Hyprland rule lives in the running config and a compositor reload clears it.
 ```ini
 windowrule {
   name = ghost-notes-hide
-  match:class ^(invisible-notes)$
+  match:class = ^(invisible-notes)$
   no_screen_share = true
 }
 ```
